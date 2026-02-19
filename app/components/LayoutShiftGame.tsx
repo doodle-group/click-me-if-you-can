@@ -37,6 +37,7 @@ export default function LayoutShiftGame() {
   const [isMoving, setIsMoving] = useState(false);
   const [showFeedback, setShowFeedback] = useState<'hit' | 'miss' | null>(null);
   const [buttonSize, setButtonSize] = useState<ButtonSize>({ width: 100, height: 50 });
+  const [showButton, setShowButton] = useState(true);
 
   // Calculate difficulty parameters based on level
   // Difficulty parameters: use rangePercent (fraction of container) so behavior scales on mobile/tablet
@@ -167,6 +168,16 @@ export default function LayoutShiftGame() {
 
     e.preventDefault();
 
+    // Clear any pending movement immediately so the button doesn't jump
+    if (movementTimeoutRef.current) {
+      clearTimeout(movementTimeoutRef.current);
+      movementTimeoutRef.current = null;
+    }
+    setIsMoving(false);
+
+    // Hide the button immediately on click
+    setShowButton(false);
+
     setShowFeedback('hit');
     setGameState((prev) => ({
       ...prev,
@@ -184,13 +195,31 @@ export default function LayoutShiftGame() {
         message: `Level ${prev.level + 1} - Get ready!`,
       }));
 
-      // Reset button position
-      if (gameContainerRef.current) {
-          const rect = gameContainerRef.current.getBoundingClientRect();
-          setButtonPos({
-            x: rect.width / 2 - buttonSize.width / 2,
-            y: rect.height / 2 - buttonSize.height / 2,
-          });
+      // Clear any pending movement so the reset remains stable
+      if (movementTimeoutRef.current) {
+        clearTimeout(movementTimeoutRef.current);
+        movementTimeoutRef.current = null;
+      }
+      setIsMoving(false);
+
+      // Reset button position to center using latest measurements, then show it
+      if (gameContainerRef.current && buttonRef.current) {
+        const cRect = gameContainerRef.current.getBoundingClientRect();
+        const bRect = buttonRef.current.getBoundingClientRect();
+        setButtonSize({ width: bRect.width, height: bRect.height });
+        setButtonPos({
+          x: cRect.width / 2 - bRect.width / 2,
+          y: cRect.height / 2 - bRect.height / 2,
+        });
+        // Re-show the button after reposition
+        setShowButton(true);
+      } else if (gameContainerRef.current) {
+        const rect = gameContainerRef.current.getBoundingClientRect();
+        setButtonPos({
+          x: rect.width / 2 - buttonSize.width / 2,
+          y: rect.height / 2 - buttonSize.height / 2,
+        });
+        setShowButton(true);
       }
     }, 1000);
   };
@@ -267,22 +296,23 @@ export default function LayoutShiftGame() {
           </div>
 
           {/* Evasive Button */}
-          <button
-            ref={buttonRef}
-            onClick={handleButtonClick}
-            onMouseEnter={handleButtonHover}
-            onPointerEnter={handleButtonHover}
-            onPointerDown={handleButtonHover}
-            onTouchStart={handleButtonHover}
-            className="absolute w-20 sm:w-24 md:w-28 h-10 sm:h-12 md:h-14 bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-300 hover:to-blue-400 text-white font-bold rounded-full shadow-lg transition-transform duration-100 transform hover:scale-110 active:scale-95 cursor-pointer border-2 border-cyan-300 z-10"
-            style={{
-              left: `${buttonPos.x}px`,
-              top: `${buttonPos.y}px`,
-              opacity: showFeedback === 'hit' ? 1 : 1,
-            }}
-          >
-            Click Me!
-          </button>
+          {showButton && (
+            <button
+              ref={buttonRef}
+              onClick={handleButtonClick}
+              onMouseEnter={handleButtonHover}
+              onPointerEnter={handleButtonHover}
+              onPointerDown={handleButtonHover}
+              onTouchStart={handleButtonHover}
+              className="absolute w-20 sm:w-24 md:w-28 h-10 sm:h-12 md:h-14 bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-300 hover:to-blue-400 text-white font-bold rounded-full shadow-lg transition-transform duration-100 transform hover:scale-110 active:scale-95 cursor-pointer border-2 border-cyan-300 z-10"
+              style={{
+                left: `${buttonPos.x}px`,
+                top: `${buttonPos.y}px`,
+              }}
+            >
+              Click Me!
+            </button>
+          )}
 
           {/* Feedback Indicators */}
           {showFeedback === 'hit' && (
