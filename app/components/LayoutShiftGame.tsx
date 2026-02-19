@@ -15,6 +15,11 @@ interface ButtonPosition {
   y: number;
 }
 
+interface ButtonSize {
+  width: number;
+  height: number;
+}
+
 export default function LayoutShiftGame() {
   const gameContainerRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -31,34 +36,36 @@ export default function LayoutShiftGame() {
   const [buttonPos, setButtonPos] = useState<ButtonPosition>({ x: 0, y: 0 });
   const [isMoving, setIsMoving] = useState(false);
   const [showFeedback, setShowFeedback] = useState<'hit' | 'miss' | null>(null);
+  const [buttonSize, setButtonSize] = useState<ButtonSize>({ width: 100, height: 50 });
 
   // Calculate difficulty parameters based on level
+  // Difficulty parameters: use rangePercent (fraction of container) so behavior scales on mobile/tablet
   const getDifficultyParams = (level: number) => {
     if (level <= 3) {
       return {
         speed: 200,
-        range: 100,
+        rangePercent: 0.12,
         reactionTime: 300,
         diagonal: false,
       };
     } else if (level <= 7) {
       return {
         speed: 100,
-        range: 200,
+        rangePercent: 0.18,
         reactionTime: 150,
         diagonal: true,
       };
     } else if (level <= 10) {
       return {
         speed: 50,
-        range: 300,
+        rangePercent: 0.28,
         reactionTime: 75,
         diagonal: true,
       };
     } else {
       return {
         speed: 25,
-        range: 400,
+        rangePercent: 0.4,
         reactionTime: 40,
         diagonal: true,
       };
@@ -69,8 +76,8 @@ export default function LayoutShiftGame() {
   useEffect(() => {
     if (gameContainerRef.current) {
       const rect = gameContainerRef.current.getBoundingClientRect();
-      const initialX = rect.width / 2 - 50;
-      const initialY = rect.height / 2 - 25;
+      const initialX = rect.width / 2 - buttonSize.width / 2;
+      const initialY = rect.height / 2 - buttonSize.height / 2;
       setButtonPos({ x: initialX, y: initialY });
     }
   }, []);
@@ -93,14 +100,16 @@ export default function LayoutShiftGame() {
       angle = directions[Math.floor(Math.random() * directions.length)];
     }
 
-    const distance = params.range * (0.5 + Math.random() * 0.5);
+    const distance = Math.max(containerWidth, containerHeight) * params.rangePercent * (0.5 + Math.random() * 0.5);
     let newX = buttonPos.x + Math.cos(angle) * distance;
     let newY = buttonPos.y + Math.sin(angle) * distance;
 
     // Keep button within container with padding
-    const padding = 10;
-    newX = Math.max(padding, Math.min(newX, containerWidth - 100 - padding));
-    newY = Math.max(padding, Math.min(newY, containerHeight - 50 - padding));
+    const padding = 8;
+    const maxX = Math.max(padding, containerWidth - buttonSize.width - padding);
+    const maxY = Math.max(padding, containerHeight - buttonSize.height - padding);
+    newX = Math.max(padding, Math.min(newX, maxX));
+    newY = Math.max(padding, Math.min(newY, maxY));
 
     setButtonPos({ x: newX, y: newY });
   };
@@ -125,6 +134,32 @@ export default function LayoutShiftGame() {
       setIsMoving(false);
     }, params.reactionTime);
   };
+
+  // Update measured button size and center when button or container changes (responsive)
+  useEffect(() => {
+    const updateSizes = () => {
+      if (buttonRef.current) {
+        const bRect = buttonRef.current.getBoundingClientRect();
+        setButtonSize({ width: bRect.width, height: bRect.height });
+      }
+      if (gameContainerRef.current && buttonRef.current) {
+        const cRect = gameContainerRef.current.getBoundingClientRect();
+        const bRect = buttonRef.current.getBoundingClientRect();
+        setButtonPos({ x: cRect.width / 2 - bRect.width / 2, y: cRect.height / 2 - bRect.height / 2 });
+      }
+    };
+
+    // Initial measurement
+    updateSizes();
+
+    // Recompute on resize or orientation change
+    window.addEventListener('resize', updateSizes);
+    window.addEventListener('orientationchange', updateSizes);
+    return () => {
+      window.removeEventListener('resize', updateSizes);
+      window.removeEventListener('orientationchange', updateSizes);
+    };
+  }, []);
 
   // Handle successful click
   const handleButtonClick = (e: React.MouseEvent) => {
@@ -151,11 +186,11 @@ export default function LayoutShiftGame() {
 
       // Reset button position
       if (gameContainerRef.current) {
-        const rect = gameContainerRef.current.getBoundingClientRect();
-        setButtonPos({
-          x: rect.width / 2 - 50,
-          y: rect.height / 2 - 25,
-        });
+          const rect = gameContainerRef.current.getBoundingClientRect();
+          setButtonPos({
+            x: rect.width / 2 - buttonSize.width / 2,
+            y: rect.height / 2 - buttonSize.height / 2,
+          });
       }
     }, 1000);
   };
@@ -189,8 +224,8 @@ export default function LayoutShiftGame() {
     if (gameContainerRef.current) {
       const rect = gameContainerRef.current.getBoundingClientRect();
       setButtonPos({
-        x: rect.width / 2 - 50,
-        y: rect.height / 2 - 25,
+        x: rect.width / 2 - buttonSize.width / 2,
+        y: rect.height / 2 - buttonSize.height / 2,
       });
     }
   };
@@ -200,23 +235,23 @@ export default function LayoutShiftGame() {
       <div className="w-full max-w-4xl">
         {/* Header */}
         <div className="text-center mb-8">
-          <h1 className="text-5xl font-bold text-white mb-2">Layout Shift Game</h1>
-          <p className="text-xl text-purple-300">Can you catch the elusive button?</p>
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-white mb-2">Layout Shift Game</h1>
+          <p className="text-base sm:text-lg text-purple-300">Can you catch the elusive button?</p>
         </div>
 
         {/* Stats Bar */}
-        <div className="grid grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
           <div className="bg-purple-800/50 backdrop-blur rounded-lg p-4 text-center border border-purple-600">
             <p className="text-purple-300 text-sm font-semibold">LEVEL</p>
-            <p className="text-4xl font-bold text-white">{gameState.level}</p>
+            <p className="text-3xl sm:text-4xl font-bold text-white">{gameState.level}</p>
           </div>
           <div className="bg-purple-800/50 backdrop-blur rounded-lg p-4 text-center border border-purple-600">
             <p className="text-purple-300 text-sm font-semibold">SCORE</p>
-            <p className="text-4xl font-bold text-white">{gameState.score}</p>
+            <p className="text-3xl sm:text-4xl font-bold text-white">{gameState.score}</p>
           </div>
           <div className="bg-purple-800/50 backdrop-blur rounded-lg p-4 text-center border border-purple-600">
             <p className="text-purple-300 text-sm font-semibold">ATTEMPTS</p>
-            <p className="text-4xl font-bold text-white">{gameState.attempts}</p>
+            <p className="text-3xl sm:text-4xl font-bold text-white">{gameState.attempts}</p>
           </div>
         </div>
 
@@ -224,7 +259,7 @@ export default function LayoutShiftGame() {
         <div
           ref={gameContainerRef}
           onClick={handleContainerClick}
-          className="relative w-full h-96 bg-gradient-to-b from-slate-900 to-slate-950 rounded-lg border-2 border-purple-600 shadow-2xl overflow-hidden cursor-crosshair"
+          className="relative w-full h-72 sm:h-80 md:h-96 bg-gradient-to-b from-slate-900 to-slate-950 rounded-lg border-2 border-purple-600 shadow-2xl overflow-hidden cursor-crosshair touch-none"
         >
           {/* Animated background grid */}
           <div className="absolute inset-0 opacity-10">
@@ -236,8 +271,10 @@ export default function LayoutShiftGame() {
             ref={buttonRef}
             onClick={handleButtonClick}
             onMouseEnter={handleButtonHover}
+            onPointerEnter={handleButtonHover}
+            onPointerDown={handleButtonHover}
             onTouchStart={handleButtonHover}
-            className="absolute w-24 h-12 bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-300 hover:to-blue-400 text-white font-bold rounded-full shadow-lg transition-all duration-100 transform hover:scale-110 cursor-pointer border-2 border-cyan-300 z-10"
+            className="absolute w-20 sm:w-24 md:w-28 h-10 sm:h-12 md:h-14 bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-300 hover:to-blue-400 text-white font-bold rounded-full shadow-lg transition-transform duration-100 transform hover:scale-110 active:scale-95 cursor-pointer border-2 border-cyan-300 z-10"
             style={{
               left: `${buttonPos.x}px`,
               top: `${buttonPos.y}px`,
